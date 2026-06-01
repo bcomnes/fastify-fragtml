@@ -141,7 +141,7 @@ test('layout callback can own fragment selection', async (t) => {
       frag(/** @type {'main' | undefined} */ (opts.fragmentId))
     )
 
-    return h`
+    return h/* html */`
       <!DOCTYPE html>
       <html>
         <head><title>${String(context['title'] ?? '')}</title></head>
@@ -258,6 +258,53 @@ test('named global layouts can be selected globally and per render', async (t) =
   assert.strictEqual(JSON.parse(missingResponse.body).message, 'Unknown layout "missing"')
 })
 
+test('content type can be set by plugin, layout, and render options', async (t) => {
+  const app = Fastify()
+
+  await app.register(fastifyFragtml, {
+    contentType: 'application/xhtml+xml; charset=utf-8',
+    layout: {
+      contentType: 'text/vnd.turbo-stream.html; charset=utf-8',
+      /**
+       * @param {FragtmlRenderable} body
+       */
+      render: body => html`<main>${body}</main>`,
+    },
+  })
+
+  const page = () => html`<p>hello</p>`
+
+  app.get('/layout', (_req, reply) => {
+    return reply.render(page, {})
+  })
+
+  app.get('/plugin', (_req, reply) => {
+    return reply.render(page, {}, { layout: false })
+  })
+
+  app.get('/render', (_req, reply) => {
+    return reply.render(page, {}, {
+      contentType: 'text/html; charset=iso-8859-1',
+    })
+  })
+
+  app.get('/existing', (_req, reply) => {
+    reply.type('text/plain')
+    return reply.render(page, {})
+  })
+
+  t.after(() => app.close())
+  const layoutResponse = await app.inject('/layout')
+  const pluginResponse = await app.inject('/plugin')
+  const renderResponse = await app.inject('/render')
+  const existingResponse = await app.inject('/existing')
+
+  assert.strictEqual(layoutResponse.headers['content-type'], 'text/vnd.turbo-stream.html; charset=utf-8')
+  assert.strictEqual(pluginResponse.headers['content-type'], 'application/xhtml+xml; charset=utf-8')
+  assert.strictEqual(renderResponse.headers['content-type'], 'text/html; charset=iso-8859-1')
+  assert.strictEqual(existingResponse.headers['content-type'], 'text/plain')
+})
+
 test('reply.render supports fragtml context args objects', async (t) => {
   const app = Fastify()
 
@@ -284,7 +331,7 @@ test('reply.render supports fragtml context args objects', async (t) => {
       frag(fragmentId)
     )
 
-    return h`
+    return h/* html */`
       <div>${String(context['foo'] ?? '')}</div>
 
       ${h.fragment.start('outer')}

@@ -31,7 +31,7 @@ const layouts = defineFragtmlLayouts<PageContext, PageFragment>()({
   main: (body, context, opts) => {
     const h = frag<PageFragment>(opts.fragmentId)
 
-    return h`
+    return h/* html */`
       <!DOCTYPE html>
       <html>
         <head><title>${context.title}</title></head>
@@ -44,6 +44,10 @@ const layouts = defineFragtmlLayouts<PageContext, PageFragment>()({
     `
   },
   admin: body => html`<main data-layout="admin">${body}</main>`,
+  stream: {
+    contentType: 'text/vnd.turbo-stream.html; charset=utf-8',
+    render: body => html`<turbo-stream>${body}</turbo-stream>`,
+  },
 })
 type PageLayout = FragtmlLayoutName<typeof layouts>
 const renderOptions: FragtmlRenderOptions<PageContext, PageLayout, PageFragment> = {
@@ -54,10 +58,21 @@ const invalidFragmentOptions: FragtmlRenderOptions<PageContext, PageLayout, Page
   // @ts-expect-error fragment IDs are limited to the template fragment union.
   fragmentId: 'missing',
 }
+const contentTypeRenderOptions: FragtmlRenderOptions<PageContext, PageLayout, PageFragment> = {
+  contentType: 'text/html; charset=utf-8',
+  layout: 'stream',
+}
+const disabledContentTypeRenderOptions: FragtmlRenderOptions<PageContext, PageLayout, PageFragment> = {
+  contentType: false,
+}
+const invalidContentTypeRenderOptions: FragtmlRenderOptions<PageContext, PageLayout, PageFragment> = {
+  // @ts-expect-error contentType must be a string or false.
+  contentType: 123,
+}
 const template: FragtmlTemplate<PageContext, PageLayout, PageFragment> = (context, opts) => {
   const h = frag<PageFragment>(opts.fragmentId)
 
-  return h`
+  return h/* html */`
     ${h.fragment.start('main')}
     <h1>${context.title}</h1>
     <p>${context.count}</p>
@@ -72,6 +87,7 @@ const customRuntime: FragtmlRuntime = {
   render,
 }
 const options = defineFastifyFragtmlOptions<PageContext, typeof layouts, PageFragment>({
+  contentType: 'text/html; charset=utf-8',
   defaultContext: {
     title: 'Default',
   },
@@ -152,7 +168,7 @@ const fragmentPageTemplate: FragtmlArgsTemplate<FragmentPageArgs, PageLayout> = 
 }: FragmentPageTemplateArgs) => {
   const h = frag<FragmentPageFragment>(fragmentId)
 
-  return h`
+  return h/* html */`
     <div>${context.foo}</div>
 
     ${h.fragment.start('outer')}
@@ -215,6 +231,9 @@ customReply.render(fragmentPageTemplate, {
 void customReplyResult
 void invalidRenderOptions
 void invalidFragmentOptions
+void contentTypeRenderOptions
+void disabledContentTypeRenderOptions
+void invalidContentTypeRenderOptions
 void typedOptions
 void renderable
 void innerFragmentHtml

@@ -14,7 +14,7 @@ It provides Fastify rendering ergonomics for function-based `fragtml` templates:
 
 - `reply.render()` renders HTML and returns a promise for the rendered string.
 - `reply.locals` and `defaultContext` are merged into template data.
-- custom decorator names, layouts, charset, and minifier hooks are supported.
+- custom decorator names, layouts, content types, charset, and minifier hooks are supported.
 - it intentionally does not decorate `reply.view`, `reply.viewAsync`, or `fastify.view`, so it can coexist with `@fastify/view`.
 
 ```
@@ -84,7 +84,7 @@ fastify.addHook('preHandler', async (request, reply) => {
 
 ## Layouts
 
-Layouts are callbacks. They receive the already-rendered body value, merged context, and render options. This keeps layouts `fragtml`-native and lets them own fragment boundaries.
+Layouts are callbacks or objects with a `render` callback. The render callback receives the already-rendered body value, merged context, and render options. This keeps layouts `fragtml`-native and lets them own fragment boundaries.
 
 ```js
 import { frag } from 'fragtml'
@@ -130,13 +130,16 @@ import html from 'fragtml'
 await fastify.register(fastifyFragtml, {
   layout: 'main',
   layouts: {
-    main: (body, context) => html`
-      <!DOCTYPE html>
-      <html>
-        <head><title>${context.title}</title></head>
-        <body>${body}</body>
-      </html>
-    `,
+    main: {
+      contentType: 'text/html; charset=utf-8',
+      render: (body, context) => html`
+        <!DOCTYPE html>
+        <html>
+          <head><title>${context.title}</title></head>
+          <body>${body}</body>
+        </html>
+      `
+    },
     admin: body => html`
       <main data-layout="admin">${body}</main>
     `
@@ -146,7 +149,72 @@ await fastify.register(fastifyFragtml, {
 reply.render(pageTemplate, data, { layout: 'admin' })
 ```
 
-`layout` can be a callback, a registered layout name, `false` in render options to disable the default, or `null` when registering to skip a default layout.
+`layout` can be a callback, a layout object, a registered layout name, `false` in render options to disable the default, or `null` when registering to skip a default layout.
+
+Content type is set only when the reply does not already have a `Content-Type` header. The precedence is:
+
+1. existing reply `Content-Type`
+2. render `contentType`
+3. resolved layout `contentType`
+4. plugin `contentType`
+5. `text/html; charset=utf-8`
+
+```js
+const body = await reply.render(pageTemplate, data, {
+  contentType: 'text/vnd.turbo-stream.html; charset=utf-8'
+})
+reply.send(body)
+```
+
+That makes XML and RSS layouts straightforward:
+
+```js
+import html from 'fragtml'
+
+const feedTemplate = context => html`
+  <channel>
+    <title>${context.title}</title>
+    <link>${context.siteUrl}</link>
+    ${context.posts.map(post => html`
+      <item>
+        <title>${post.title}</title>
+        <link>${context.siteUrl}${post.href}</link>
+        <guid>${context.siteUrl}${post.href}</guid>
+      </item>
+    `)}
+  </channel>
+`
+
+await fastify.register(fastifyFragtml, {
+  layouts: {
+    rss: {
+      contentType: 'application/rss+xml; charset=utf-8',
+      render: body => html`<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  ${body}
+</rss>
+`
+    }
+  }
+})
+
+fastify.get('/feed.xml', async (request, reply) => {
+  const body = await reply.render(feedTemplate, {
+    title: 'Example Feed',
+    siteUrl: 'https://example.com',
+    posts: [
+      {
+        title: 'Hello & welcome',
+        href: '/posts/hello'
+      }
+    ]
+  }, {
+    layout: 'rss'
+  })
+
+  return reply.send(body)
+})
+```
 
 For stricter TypeScript checks, use the helper functions to infer layout names from the layout map:
 
@@ -177,7 +245,7 @@ const pageTemplate: FragtmlTemplate<PageContext, PageLayout, PageFragment> = (
 ) => {
   const h = html<PageFragment>(options.fragmentId)
 
-  return h`
+  return h/* html */`
     ${h.fragment.start('main')}
     <p>${context.title}</p>
     ${h.fragment.end}
@@ -205,6 +273,7 @@ reply.render(pageTemplate, data, { fragmentId: 'missing' })
 ```ts
 interface FastifyFragtmlOptions {
   charset?: string
+  contentType?: string | false
   defaultContext?: object
   fragtml?: FragtmlRuntime
   layout?: FragtmlLayout | string | null
@@ -226,6 +295,11 @@ interface FragtmlRuntime {
   html?: HtmlTag
   frag?: HtmlTag
   default?: HtmlTag
+}
+
+interface FragtmlLayoutObject {
+  contentType?: string | false
+  render: FragtmlLayout
 }
 ```
 

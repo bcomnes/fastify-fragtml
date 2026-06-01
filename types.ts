@@ -69,7 +69,9 @@ export type FragtmlArgsTemplate<
   opts: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId>
 ) => FragtmlTemplateResult
 
-export type FragtmlLayout<
+export type FragtmlContentType = string | false
+
+export type FragtmlLayoutRender<
   Context extends FragtmlContext = FragtmlDefaultContext,
   LayoutName extends string = string,
   FragmentId extends string = string
@@ -80,6 +82,23 @@ export type FragtmlLayout<
     opts: FragtmlRenderOptions<Context, LayoutName, FragmentId>
   ) => FragtmlTemplateResult
 }['bivarianceHack']
+
+export interface FragtmlLayoutObject<
+  Context extends FragtmlContext = FragtmlDefaultContext,
+  LayoutName extends string = string,
+  FragmentId extends string = string
+> {
+  contentType?: FragtmlContentType
+  render: FragtmlLayoutRender<Context, LayoutName, FragmentId>
+}
+
+export type FragtmlLayout<
+  Context extends FragtmlContext = FragtmlDefaultContext,
+  LayoutName extends string = string,
+  FragmentId extends string = string
+> =
+  | FragtmlLayoutRender<Context, LayoutName, FragmentId>
+  | FragtmlLayoutObject<Context, LayoutName, FragmentId>
 
 export type FragtmlLayoutName<Layouts> = Extract<keyof Layouts, string>
 
@@ -105,6 +124,7 @@ export interface FragtmlRenderOptions<
   FragmentId extends string = string
 >
   extends RenderOptions<FragmentId> {
+  contentType?: FragtmlContentType
   layout?: FragtmlLayout<Context, LayoutName, FragmentId> | LayoutName | false | null
 }
 
@@ -161,6 +181,7 @@ export interface FastifyFragtmlOptions<
   FragmentId extends string = string
 > {
   charset?: string
+  contentType?: FragtmlContentType
   defaultContext?: Partial<Context>
   fragtml?: FragtmlRuntime
   layout?: FragtmlLayout<Context, LayoutName, FragmentId> | LayoutName | null
