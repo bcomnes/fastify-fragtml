@@ -11,7 +11,6 @@ import type {
   FastifyFragtmlOptionsForLayouts,
   FragmentTemplateTypes,
   FragtmlArgsTemplate,
-  FragtmlInstanceDecorators,
   FragtmlLayoutName,
   FragtmlRenderable,
   FragtmlReplyDecorators,
@@ -99,67 +98,27 @@ app.get('/', async (_req, reply) => {
     requestId: 'abc',
   }
 
-  const sentReply: FastifyReply = reply.view(template, {
-    count: 1,
-    title: 'Home',
-  })
-  const rendered: string = await reply.viewAsync(template, {
+  const rendered: string = await reply.render(template, {
     count: 1,
     title: 'Home',
   }, renderOptions)
 
-  return sentReply.type('text/html').send(rendered)
+  return reply.type('text/html').send(rendered)
 })
 
-const renderedOutsideRequest: Promise<string> = app.view(template, {
-  count: 1,
-  title: 'Outside',
-})
-// @ts-expect-error fragment IDs are inferred from the template.
-app.view(template, {
-  count: 1,
-  title: 'Bad fragment',
-}, { fragmentId: 'missing' })
-
-app.view(template, {
-  count: 1,
-  title: 'Callback',
-}, undefined, (err, rendered) => {
-  const callbackError: Error | null = err
-  const callbackRendered: string | undefined = rendered
-
-  void callbackError
-  void callbackRendered
-})
-
-const defaultDecorators = app as typeof app & FragtmlInstanceDecorators
-defaultDecorators.view.clearCache()
-
-type CustomReply = FastifyReply & FragtmlReplyDecorators<'render', 'renderAsync', PageLayout, PageFragment>
-type CustomInstance = typeof app & FragtmlInstanceDecorators<'render', PageLayout, PageFragment>
+type CustomReply = FastifyReply & FragtmlReplyDecorators<'render', PageLayout, PageFragment>
 
 declare const customReply: CustomReply
-declare const customInstance: CustomInstance
 
-const customReplyResult: FastifyReply = customReply.render(template, {
+const customReplyResult: Promise<string> = customReply.render(template, {
   count: 2,
   title: 'Custom',
-})
-const customReplyAsyncResult: Promise<string> = customReply.renderAsync(template, {
-  count: 2,
-  title: 'Custom',
-}, {
-  layout: 'admin',
 })
 // @ts-expect-error fragment IDs are preserved on custom decorator helpers.
-customReply.renderAsync(template, {
+customReply.render(template, {
   count: 2,
   title: 'Bad fragment',
 }, { fragmentId: 'missing' })
-const customInstanceResult: Promise<string> = customInstance.render(template, {
-  count: 3,
-  title: 'Custom instance',
-})
 const trusted = raw('<strong>trusted</strong>')
 const renderable: FragtmlRenderable = html`<p>${trusted}</p>`
 
@@ -187,7 +146,7 @@ type FragmentPageArgs = FragmentPage['args']
 type FragmentPageTemplateArgs = FragmentPage['templateArgs']
 type FragmentPageFragment = FragmentPage['fragmentId']
 
-const fragmentPageTemplate: FragtmlArgsTemplate<FragmentPageArgs> = ({
+const fragmentPageTemplate: FragtmlArgsTemplate<FragmentPageArgs, PageLayout> = ({
   context,
   fragmentId,
 }: FragmentPageTemplateArgs) => {
@@ -209,27 +168,27 @@ const fragmentPageTemplate: FragtmlArgsTemplate<FragmentPageArgs> = ({
   `
 }
 
-const innerFragmentReply: FastifyReply = customReply.view(fragmentPageTemplate, {
+const innerFragmentHtml: Promise<string> = customReply.render(fragmentPageTemplate, {
   fragmentId: 'inner',
   context: {
     text: 'Updated body text',
   },
 })
-const outerFragmentHtml: Promise<string> = customReply.viewAsync(fragmentPageTemplate, {
+const outerFragmentHtml: Promise<string> = customReply.render(fragmentPageTemplate, {
   fragmentId: 'outer',
   context: {
     title: 'Outer fragment title',
     text: 'Updated body text',
   },
 })
-const fullFragmentHtml: Promise<string> = customInstance.view(fragmentPageTemplate, {
+const fullFragmentHtml: Promise<string> = customReply.render(fragmentPageTemplate, {
   context: {
     foo: 'Full page field',
     title: 'Outer fragment title',
     text: 'Updated body text',
   },
 })
-const innerFragmentFromOptions: FastifyReply = customReply.view(fragmentPageTemplate, {
+const innerFragmentFromOptions: Promise<string> = customReply.render(fragmentPageTemplate, {
   context: {
     foo: 'Full page field',
     title: 'Outer fragment title',
@@ -237,7 +196,7 @@ const innerFragmentFromOptions: FastifyReply = customReply.view(fragmentPageTemp
   },
 }, { fragmentId: 'inner' })
 // @ts-expect-error render options fragment IDs are inferred from FragmentTemplateTypes.
-customReply.view(fragmentPageTemplate, {
+customReply.render(fragmentPageTemplate, {
   context: {
     foo: 'Full page field',
     title: 'Outer fragment title',
@@ -245,36 +204,20 @@ customReply.view(fragmentPageTemplate, {
   },
 }, { fragmentId: 'missing' })
 
-customInstance.view(fragmentPageTemplate, {
-  fragmentId: 'inner',
-  context: {
-    text: 'Updated body text',
-  },
-}, undefined, (err, rendered) => {
-  const callbackError: Error | null = err
-  const callbackRendered: string | undefined = rendered
-
-  void callbackError
-  void callbackRendered
-})
-
 // @ts-expect-error outer fragments require both title and text.
-customReply.view(fragmentPageTemplate, {
+customReply.render(fragmentPageTemplate, {
   fragmentId: 'outer',
   context: {
     text: 'Missing title',
   },
 })
 
-void renderedOutsideRequest
 void customReplyResult
-void customReplyAsyncResult
-void customInstanceResult
 void invalidRenderOptions
 void invalidFragmentOptions
 void typedOptions
 void renderable
-void innerFragmentReply
+void innerFragmentHtml
 void innerFragmentFromOptions
 void outerFragmentHtml
 void fullFragmentHtml

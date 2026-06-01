@@ -1,12 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert'
 import Fastify from 'fastify'
-import html, { frag, raw, render as renderFragtml } from 'fragtml'
+import html, { frag, raw, render as renderHtml } from 'fragtml'
 import fastifyFragtml from './index.js'
 /** @import { FragtmlArgsTemplate, FragtmlLayout, FragtmlRenderable, FragtmlTemplate } from './types.js' */
 /** @import { HtmlTag } from 'fragtml/types.js' */
 
-test('reply.view renders fragtml templates with default context and locals', async (t) => {
+test('reply.render renders fragtml templates with default context and locals', async (t) => {
   const app = Fastify()
 
   await app.register(fastifyFragtml, {
@@ -34,7 +34,7 @@ test('reply.view renders fragtml templates with default context and locals', asy
   `
 
   app.get('/', (_req, reply) => {
-    return reply.view(page, {
+    return reply.render(page, {
       title: 'Route title',
       unsafe: '<script>alert(1)</script>',
     })
@@ -52,25 +52,25 @@ test('reply.view renders fragtml templates with default context and locals', asy
   assert.match(response.body, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/)
 })
 
-test('reply.viewAsync returns html without sending', async (t) => {
+test('reply.render returns html without sending', async (t) => {
   const app = Fastify()
 
   await app.register(fastifyFragtml)
 
   app.get('/', async (_req, reply) => {
-    const body = await reply.viewAsync(
+    const body = await reply.render(
       context => html`<p>${String(context['message'] ?? '')}</p>`,
       { message: 'hello' }
     )
 
-    return reply.type('text/plain').send(body)
+    return reply.send(body)
   })
 
   t.after(() => app.close())
   const response = await app.inject('/')
 
   assert.strictEqual(response.statusCode, 200)
-  assert.strictEqual(response.headers['content-type'], 'text/plain')
+  assert.strictEqual(response.headers['content-type'], 'text/html; charset=utf-8')
   assert.strictEqual(response.body, '<p>hello</p>')
 })
 
@@ -87,13 +87,13 @@ test('custom fragtml runtime render is used', async (t) => {
        */
       async render (value) {
         renderedValues.push(value)
-        return `custom:${renderFragtml(value)}`
+        return `custom:${renderHtml(value)}`
       },
     },
   })
 
   app.get('/', (_req, reply) => {
-    return reply.view(
+    return reply.render(
       () => html`<p>${raw('<strong>trusted</strong>')}</p>`,
       {}
     )
@@ -107,47 +107,11 @@ test('custom fragtml runtime render is used', async (t) => {
   assert.strictEqual(renderedValues.length, 1)
 })
 
-test('fastify.view renders outside a request and supports callbacks', async (t) => {
-  const app = Fastify()
-
-  await app.register(fastifyFragtml, {
-    defaultContext: { appName: 'fastify-fragtml' },
-  })
-
-  t.after(() => app.close())
-
-  /** @type {FragtmlTemplate} */
-  const page = context => html`<p>${String(context['appName'] ?? '')}</p>`
-
-  const rendered = await app.view(page, {})
-
-  assert.strictEqual(rendered, '<p>fastify-fragtml</p>')
-
-  const callbackRendered = await new Promise((resolve, reject) => {
-    app.view(
-      context => html`<p>${String(context['message'] ?? '')}</p>`,
-      { message: 'callback' },
-      undefined,
-      /**
-       * @param {Error | null} err
-       * @param {string | undefined} result
-       */
-      (err, result) => {
-        if (err) reject(err)
-        else resolve(result)
-      }
-    )
-  })
-
-  assert.strictEqual(callbackRendered, '<p>callback</p>')
-})
-
 test('custom decorator names are supported for avoiding view conflicts', async (t) => {
   const app = Fastify()
 
   await app.register(fastifyFragtml, {
     propertyName: 'fragtml',
-    asyncPropertyName: 'fragtmlAsync',
   })
 
   app.get('/', (_req, reply) => {
@@ -204,11 +168,11 @@ test('layout callback can own fragment selection', async (t) => {
   `
 
   app.get('/full', (_req, reply) => {
-    return reply.view(page, { title: 'Full' })
+    return reply.render(page, { title: 'Full' })
   })
 
   app.get('/fragment', (_req, reply) => {
-    return reply.view(page, { title: 'Fragment' }, { fragmentId: 'main' })
+    return reply.render(page, { title: 'Fragment' }, { fragmentId: 'main' })
   })
 
   t.after(() => app.close())
@@ -253,30 +217,35 @@ test('named global layouts can be selected globally and per render', async (t) =
   const page = context => html`<p>${String(context['message'] ?? '')}</p>`
 
   app.get('/default', (_req, reply) => {
-    return reply.view(page, {
+    return reply.render(page, {
       message: 'Default body',
       title: 'Default title',
     })
   })
 
   app.get('/admin', (_req, reply) => {
-    return reply.view(page, {
+    return reply.render(page, {
       message: 'Admin body',
       title: 'Admin title',
     }, { layout: 'admin' })
   })
 
   app.get('/none', (_req, reply) => {
-    return reply.view(page, {
+    return reply.render(page, {
       message: 'Bare body',
       title: 'Bare title',
     }, { layout: false })
+  })
+
+  app.get('/missing', (_req, reply) => {
+    return reply.render(page, { message: 'Missing layout' }, { layout: 'missing' })
   })
 
   t.after(() => app.close())
   const defaultResponse = await app.inject('/default')
   const adminResponse = await app.inject('/admin')
   const bareResponse = await app.inject('/none')
+  const missingResponse = await app.inject('/missing')
 
   assert.match(defaultResponse.body, /data-layout="main"/)
   assert.match(defaultResponse.body, /<h1>Default title<\/h1>/)
@@ -285,13 +254,11 @@ test('named global layouts can be selected globally and per render', async (t) =
   assert.doesNotMatch(adminResponse.body, /Default title/)
   assert.match(adminResponse.body, /<p>Admin body<\/p>/)
   assert.strictEqual(bareResponse.body, '<p>Bare body</p>')
-  await assert.rejects(
-    app.view(page, { message: 'Missing layout' }, { layout: 'missing' }),
-    /Unknown layout "missing"/
-  )
+  assert.strictEqual(missingResponse.statusCode, 500)
+  assert.strictEqual(JSON.parse(missingResponse.body).message, 'Unknown layout "missing"')
 })
 
-test('reply.view supports fragtml context args objects', async (t) => {
+test('reply.render supports fragtml context args objects', async (t) => {
   const app = Fastify()
 
   await app.register(fastifyFragtml, {
@@ -333,7 +300,7 @@ test('reply.view supports fragtml context args objects', async (t) => {
   }
 
   app.get('/full', (_req, reply) => {
-    return reply.view(page, {
+    return reply.render(page, {
       context: {
         text: 'Full text',
       },
@@ -341,7 +308,7 @@ test('reply.view supports fragtml context args objects', async (t) => {
   })
 
   app.get('/inner', (_req, reply) => {
-    return reply.view(page, {
+    return reply.render(page, {
       fragmentId: 'inner',
       context: {
         text: 'Inner text',
@@ -370,7 +337,7 @@ test('layout can be disabled per render and raw output stays explicit', async (t
   })
 
   app.get('/', (_req, reply) => {
-    return reply.view(
+    return reply.render(
       () => html`<p>${raw('<strong>trusted</strong>')}</p>`,
       {},
       { layout: false }
@@ -400,8 +367,8 @@ test('minifier hook supports path exclusions', async (t) => {
     </p>
   `
 
-  app.get('/minified', (_req, reply) => reply.view(template, {}))
-  app.get('/raw', (_req, reply) => reply.view(template, {}))
+  app.get('/minified', (_req, reply) => reply.render(template, {}))
+  app.get('/raw', (_req, reply) => reply.render(template, {}))
 
   t.after(() => app.close())
   const minified = await app.inject('/minified')

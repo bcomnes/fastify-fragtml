@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync, FastifyReply } from 'fastify'
+import type { FastifyPluginAsync } from 'fastify'
 import { raw } from 'fragtml'
 import type { FragmentIdOf, HtmlRenderable, HtmlTag, RenderOptions } from 'fragtml/types.js'
 export type {
@@ -16,30 +16,7 @@ export type {
 declare module 'fastify' {
   interface FastifyReply {
     locals: Record<string, unknown>
-    view<
-      Context extends FragtmlContext = FragtmlDefaultContext,
-      LayoutName extends string = string,
-      FragmentId extends string = string
-    >(
-      template: FragtmlTemplate<Context, LayoutName, FragmentId> | FragtmlRenderable,
-      data: Context,
-      opts?: FragtmlRenderOptions<Context, LayoutName, NoInfer<FragmentId>>
-    ): FastifyReply
-    view<
-      Args extends FragtmlContext,
-      LayoutName extends string = string,
-      FragmentId extends string = FragtmlArgsFragmentId<Args>
-    >(
-      template: FragtmlArgsTemplate<Args, LayoutName, FragmentId>,
-      args: Args,
-      opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId>
-    ): FastifyReply
-    view(
-      template: FragtmlRenderable,
-      data?: FragtmlDefaultContext,
-      opts?: FragtmlRenderOptions
-    ): FastifyReply
-    viewAsync<
+    render<
       Context extends FragtmlContext = FragtmlDefaultContext,
       LayoutName extends string = string,
       FragmentId extends string = string
@@ -48,62 +25,16 @@ declare module 'fastify' {
       data: Context,
       opts?: FragtmlRenderOptions<Context, LayoutName, NoInfer<FragmentId>>
     ): Promise<string>
-    viewAsync<
+    render<
       Args extends FragtmlContext,
       LayoutName extends string = string,
       FragmentId extends string = FragtmlArgsFragmentId<Args>
     >(
       template: FragtmlArgsTemplate<Args, LayoutName, FragmentId>,
-      args: Args,
+      args: NoInfer<Args>,
       opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId>
     ): Promise<string>
-    viewAsync(
-      template: FragtmlRenderable,
-      data?: FragtmlDefaultContext,
-      opts?: FragtmlRenderOptions
-    ): Promise<string>
-  }
-
-  interface FastifyInstance {
-    view<
-      Context extends FragtmlContext = FragtmlDefaultContext,
-      LayoutName extends string = string,
-      FragmentId extends string = string
-    >(
-      template: FragtmlTemplate<Context, LayoutName, FragmentId> | FragtmlRenderable,
-      data: Context,
-      opts: FragtmlRenderOptions<Context, LayoutName, NoInfer<FragmentId>> | undefined,
-      done: (err: Error | null, html?: string) => void
-    ): void
-    view<
-      Args extends FragtmlContext,
-      LayoutName extends string = string,
-      FragmentId extends string = FragtmlArgsFragmentId<Args>
-    >(
-      template: FragtmlArgsTemplate<Args, LayoutName, FragmentId>,
-      args: Args,
-      opts: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId> | undefined,
-      done: (err: Error | null, html?: string) => void
-    ): void
-    view<
-      Context extends FragtmlContext = FragtmlDefaultContext,
-      LayoutName extends string = string,
-      FragmentId extends string = string
-    >(
-      template: FragtmlTemplate<Context, LayoutName, FragmentId> | FragtmlRenderable,
-      data: Context,
-      opts?: FragtmlRenderOptions<Context, LayoutName, NoInfer<FragmentId>>
-    ): Promise<string>
-    view<
-      Args extends FragtmlContext,
-      LayoutName extends string = string,
-      FragmentId extends string = FragtmlArgsFragmentId<Args>
-    >(
-      template: FragtmlArgsTemplate<Args, LayoutName, FragmentId>,
-      args: Args,
-      opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId>
-    ): Promise<string>
-    view(
+    render(
       template: FragtmlRenderable,
       data?: FragtmlDefaultContext,
       opts?: FragtmlRenderOptions
@@ -185,31 +116,10 @@ export interface FragtmlReplyRender<
     template: FragtmlTemplate<Context, LayoutName, FragmentId> | FragtmlRenderable,
     data: Context,
     opts?: FragtmlRenderOptions<Context, LayoutName, FragmentId>
-  ): FastifyReply
-  <Args extends FragtmlContext>(
-    template: FragtmlArgsTemplate<Args, LayoutName, FragtmlArgsFragmentId<Args>>,
-    args: Args,
-    opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragtmlArgsFragmentId<Args>>
-  ): FastifyReply
-  (
-    template: FragtmlRenderable,
-    data?: FragtmlDefaultContext,
-    opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId>
-  ): FastifyReply
-}
-
-export interface FragtmlReplyRenderAsync<
-  LayoutName extends string = string,
-  FragmentId extends string = string
-> {
-  <Context extends FragtmlContext = FragtmlDefaultContext>(
-    template: FragtmlTemplate<Context, LayoutName, FragmentId> | FragtmlRenderable,
-    data: Context,
-    opts?: FragtmlRenderOptions<Context, LayoutName, FragmentId>
   ): Promise<string>
   <Args extends FragtmlContext>(
     template: FragtmlArgsTemplate<Args, LayoutName, FragtmlArgsFragmentId<Args>>,
-    args: Args,
+    args: NoInfer<Args>,
     opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragtmlArgsFragmentId<Args>>
   ): Promise<string>
   (
@@ -217,59 +127,14 @@ export interface FragtmlReplyRenderAsync<
     data?: FragtmlDefaultContext,
     opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId>
   ): Promise<string>
-}
-
-export interface FragtmlInstanceRender<
-  LayoutName extends string = string,
-  FragmentId extends string = string
-> {
-  <Context extends FragtmlContext = FragtmlDefaultContext>(
-    template: FragtmlTemplate<Context, LayoutName, FragmentId> | FragtmlRenderable,
-    data: Context,
-    opts: FragtmlRenderOptions<Context, LayoutName, FragmentId> | undefined,
-    done: (err: Error | null, html?: string) => void
-  ): void
-  <Args extends FragtmlContext>(
-    template: FragtmlArgsTemplate<Args, LayoutName, FragtmlArgsFragmentId<Args>>,
-    args: Args,
-    opts: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragtmlArgsFragmentId<Args>> | undefined,
-    done: (err: Error | null, html?: string) => void
-  ): void
-  <Context extends FragtmlContext = FragtmlDefaultContext>(
-    template: FragtmlTemplate<Context, LayoutName, FragmentId> | FragtmlRenderable,
-    data: Context,
-    opts?: FragtmlRenderOptions<Context, LayoutName, FragmentId>
-  ): Promise<string>
-  <Args extends FragtmlContext>(
-    template: FragtmlArgsTemplate<Args, LayoutName, FragtmlArgsFragmentId<Args>>,
-    args: Args,
-    opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragtmlArgsFragmentId<Args>>
-  ): Promise<string>
-  (
-    template: FragtmlRenderable,
-    data?: FragtmlDefaultContext,
-    opts?: FragtmlRenderOptions<FragtmlDefaultContext, LayoutName, FragmentId>
-  ): Promise<string>
-  clearCache: () => void
 }
 
 export type FragtmlReplyDecorators<
-  PropertyName extends string = 'view',
-  AsyncPropertyName extends string = `${PropertyName}Async`,
+  PropertyName extends string = 'render',
   LayoutName extends string = string,
   FragmentId extends string = string
 > = {
   [Key in PropertyName]: FragtmlReplyRender<LayoutName, FragmentId>
-} & {
-  [Key in AsyncPropertyName]: FragtmlReplyRenderAsync<LayoutName, FragmentId>
-}
-
-export type FragtmlInstanceDecorators<
-  PropertyName extends string = 'view',
-  LayoutName extends string = string,
-  FragmentId extends string = string
-> = {
-  [Key in PropertyName]: FragtmlInstanceRender<LayoutName, FragmentId>
 }
 
 export interface HtmlMinifierLike {
@@ -295,7 +160,6 @@ export interface FastifyFragtmlOptions<
   LayoutName extends string = string,
   FragmentId extends string = string
 > {
-  asyncPropertyName?: string
   charset?: string
   defaultContext?: Partial<Context>
   fragtml?: FragtmlRuntime

@@ -10,13 +10,12 @@
 
 Fastify rendering decorators for [`fragtml`](https://github.com/bcomnes/fragtml).
 
-It provides Point-of-View-style ergonomics for function-based `fragtml` templates:
+It provides Fastify rendering ergonomics for function-based `fragtml` templates:
 
-- `reply.view()` renders and sends HTML.
-- `reply.viewAsync()` renders HTML without sending it.
-- `fastify.view()` renders outside a request.
+- `reply.render()` renders HTML and returns a promise for the rendered string.
 - `reply.locals` and `defaultContext` are merged into template data.
 - custom decorator names, layouts, charset, and minifier hooks are supported.
+- it intentionally does not decorate `reply.view`, `reply.viewAsync`, or `fastify.view`, so it can coexist with `@fastify/view`.
 
 ```
 npm install fastify-fragtml
@@ -37,52 +36,32 @@ await fastify.register(fastifyFragtml, {
   }
 })
 
-fastify.get('/', (request, reply) => {
-  return reply.view(context => html`
+fastify.get('/', async (request, reply) => {
+  const body = await reply.render(context => html`
     <h1>${context.title}</h1>
     <p>${context.siteName}</p>
   `, {
     title: 'Home'
   })
+
+  return reply.send(body)
 })
 ```
 
 ## API
 
-### `reply.view(template, data, options)`
+### `reply.render(template, data, options)`
 
-Renders the template, sets `Content-Type` to `text/html; charset=utf-8` unless already set, sends the HTML, and returns the reply.
-
-```js
-reply.view(context => html`<p>${context.message}</p>`, {
-  message: 'Hello'
-})
-```
-
-### `reply.viewAsync(template, data, options)`
-
-Renders the template and returns the HTML string without sending it.
+Renders the template and returns the HTML string without sending it. It sets `Content-Type` to `text/html; charset=utf-8` unless already set. Rendering errors reject the promise, so `return await reply.render(...)` or `return reply.render(...)` stays in Fastify's normal error handling flow.
 
 ```js
-const body = await reply.viewAsync(context => html`
+const body = await reply.render(context => html`
   <p>${context.message}</p>
 `, {
   message: 'Hello'
 })
 
-reply.type('text/plain').send(body)
-```
-
-### `fastify.view(template, data, options, callback)`
-
-Renders outside a request. Callback style is supported for parity with `@fastify/view`.
-
-```js
-const body = await fastify.view(context => html`
-  <p>${context.message}</p>
-`, {
-  message: 'Hello'
-})
+reply.send(body)
 ```
 
 ## Context
@@ -134,13 +113,13 @@ await fastify.register(fastifyFragtml, {
 Render only the layout's `main` fragment:
 
 ```js
-reply.view(pageTemplate, data, { fragmentId: 'main' })
+reply.render(pageTemplate, data, { fragmentId: 'main' })
 ```
 
 Disable a global layout for one render:
 
 ```js
-reply.view(pageTemplate, data, { layout: false })
+reply.render(pageTemplate, data, { layout: false })
 ```
 
 Register named layouts when routes need to choose from a shared set:
@@ -164,7 +143,7 @@ await fastify.register(fastifyFragtml, {
   }
 })
 
-reply.view(pageTemplate, data, { layout: 'admin' })
+reply.render(pageTemplate, data, { layout: 'admin' })
 ```
 
 `layout` can be a callback, a registered layout name, `false` in render options to disable the default, or `null` when registering to skip a default layout.
@@ -214,18 +193,17 @@ await fastify.register(fastifyFragtml, defineFastifyFragtmlOptions<
   layouts
 }))
 
-reply.view(pageTemplate, data, { layout: 'admin' })
+reply.render(pageTemplate, data, { layout: 'admin' })
 // @ts-expect-error layout names are inferred from `layouts`.
-reply.view(pageTemplate, data, { layout: 'missing' })
+reply.render(pageTemplate, data, { layout: 'missing' })
 // @ts-expect-error fragment IDs use the `PageFragment` union.
-reply.view(pageTemplate, data, { fragmentId: 'missing' })
+reply.render(pageTemplate, data, { fragmentId: 'missing' })
 ```
 
 ## Options
 
 ```ts
 interface FastifyFragtmlOptions {
-  asyncPropertyName?: string
   charset?: string
   defaultContext?: object
   fragtml?: FragtmlRuntime
@@ -251,7 +229,7 @@ interface FragtmlRuntime {
 }
 ```
 
-`propertyName` defaults to `view`, so the default decorators match `@fastify/view`: `reply.view()`, `reply.viewAsync()`, and `fastify.view()`.
+`propertyName` defaults to `render`. `fastify-fragtml` deliberately avoids the `view`, `viewAsync`, and `fastify.view` decorator names used by `@fastify/view`.
 
 By default, rendered values are finalized with `fragtml.render()`. Pass `fragtml` when your app uses a custom `fragtml` instance or a wrapped renderer:
 
@@ -273,12 +251,12 @@ Fastify rejects duplicate decorators in the same encapsulation scope. If `@fasti
 
 ```js
 await fastify.register(fastifyFragtml, {
-  propertyName: 'fragtml',
-  asyncPropertyName: 'fragtmlAsync'
+  propertyName: 'renderHtml'
 })
 
-fastify.get('/', (request, reply) => {
-  return reply.fragtml(template, data)
+fastify.get('/', async (request, reply) => {
+  const body = await reply.renderHtml(template, data)
+  return reply.send(body)
 })
 ```
 
@@ -305,7 +283,7 @@ const fastify = Fastify()
 await fastify.register(fastifyFragtml)
 
 fastify.get('/', (request, reply) => {
-  return reply.view(page, { title: 'Home' })
+  return reply.render(page, { title: 'Home' })
 })
 ```
 
@@ -315,14 +293,14 @@ For custom decorator names, use the exported helper types:
 import type { FastifyReply } from 'fastify'
 import type { FragtmlReplyDecorators } from 'fastify-fragtml'
 
-type FragtmlReply = FastifyReply & FragtmlReplyDecorators<'fragtml', 'fragtmlAsync'>
+type FragtmlReply = FastifyReply & FragtmlReplyDecorators<'renderHtml'>
 ```
 
 ### Fragment Template Types
 
 `fastify-fragtml` re-exports the public `fragtml/types.js` helpers, including `FragmentTemplateTypes`, `FragmentArgs`, `FragmentIdOf`, `FragmentTemplateArgs`, `HtmlRenderable`, `HtmlTag`, `HtmlResult`, `RawHtml`, and `RenderOptions`.
 
-You can use the same `FragmentTemplateTypes` pattern from `fragtml` with `reply.view()`:
+You can use the same `FragmentTemplateTypes` pattern from `fragtml` with `reply.render()`:
 
 ```ts
 import { frag } from 'fragtml'
@@ -381,7 +359,7 @@ const pageTemplate: FragtmlArgsTemplate<PageArgs> = ({
 await fastify.register(fastifyFragtml)
 
 fastify.get('/inner', (request, reply) => {
-  return reply.view(pageTemplate, {
+  return reply.render(pageTemplate, {
     fragmentId: 'inner',
     context: {
       text: 'Updated body text'
@@ -390,7 +368,7 @@ fastify.get('/inner', (request, reply) => {
 })
 
 fastify.get('/full', (request, reply) => {
-  return reply.view(pageTemplate, {
+  return reply.render(pageTemplate, {
     context: {
       foo: 'Full page field',
       title: 'Outer fragment title',
@@ -423,10 +401,10 @@ const options: FragtmlRenderOptions<PageContext, string, PageFragment> = {
   fragmentId: 'main'
 }
 
-reply.view(page, { title: 'Home' }, options)
+reply.render(page, { title: 'Home' }, options)
 
 // @ts-expect-error "missing" is not a known page fragment.
-reply.view(page, { title: 'Home' }, { fragmentId: 'missing' })
+reply.render(page, { title: 'Home' }, { fragmentId: 'missing' })
 ```
 
 ## License
