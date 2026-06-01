@@ -1,0 +1,70 @@
+{
+  "name": "fastify-fragtml",
+  "description": "Fastify rendering decorators for fragtml",
+  "version": "0.0.0",
+  "author": "Bret Comnes <bcomnes@gmail.com> (https://bret.io)",
+  "bugs": {
+    "url": "https://github.com/bcomnes/fastify-fragtml/issues"
+  },
+  "dependencies": {
+    "fastify-plugin": "^5.0.0",
+    "fragtml": "^0.0.9"
+  },
+  "devDependencies": {
+    "fastify": "^5.0.0",
+    "@voxpelli/tsconfig": "^16.1.0",
+    "@types/node": "^25.0.0",
+    "neostandard": "^0.13.0",
+    "npm-run-all2": "^9.0.0",
+    "releasearoni": "^0.2.0",
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "homepage": "https://github.com/bcomnes/fastify-fragtml",
+  "keywords": [
+    "fastify",
+    "fragtml",
+    "html",
+    "template",
+    "view",
+    "htmx"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "module": "index.js",
+  "main": "index.js",
+  "types": "types.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "index.d.ts.map",
+    "types.d.ts",
+    "types.d.ts.map",
+    "lib"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bcomnes/fastify-fragtml.git"
+  },
+  "scripts": {
+    "prepublishOnly": "releasearoni",
+    "postpublish": "npm run clean",
+    "test": "run-s test:*",
+    "test:lint": "eslint",
+    "test:tsc": "tsc",
+    "test:node-test": "node --experimental-test-coverage --test-reporter=spec --test-reporter=lcov --test-reporter-destination=stdout --test-reporter-destination=lcov.info --test",
+    "version": "releasearoni version",
+    "build": "npm run clean && run-p build:*",
+    "build:declaration": "tsc -p declaration.tsconfig.json",
+    "clean": "run-p clean:*",
+    "clean:declarations-top": "rm -rf $(find . -maxdepth 1 -type f -name '*.d.ts*')",
+    "clean:declarations-lib": "rm -rf $(find lib -type f -name '*.d.ts*' ! -name '*-types.d.ts')"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/bcomnes"
+  }
+}
