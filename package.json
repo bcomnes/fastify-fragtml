@@ -7,7 +7,7 @@
     "url": "https://github.com/bcomnes/fastify-fragtml/issues"
   },
   "dependencies": {
-    "fastify-plugin": "^5.0.0",
+    "fastify-plugin": "^6.0.0",
     "fragtml": "^0.0.9"
   },
   "devDependencies": {
